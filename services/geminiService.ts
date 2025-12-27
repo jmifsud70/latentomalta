@@ -1,10 +1,11 @@
-
 import { GoogleGenAI, Type } from "@google/genai";
 import { SheetRow, ColumnMapping } from "../types";
 
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+// Helper to get a fresh AI instance
+const getAI = () => new GoogleGenAI({ apiKey: process.env.API_KEY });
 
 export const identifyColumns = async (headers: string[], sampleRows: SheetRow[]): Promise<ColumnMapping> => {
+  const ai = getAI();
   const sampleDataStr = JSON.stringify(sampleRows.slice(0, 5));
   
   const response = await ai.models.generateContent({
@@ -33,7 +34,7 @@ export const identifyColumns = async (headers: string[], sampleRows: SheetRow[])
   });
 
   try {
-    const text = response.text;
+    const text = response.text || "{}";
     const mapping = JSON.parse(text);
     return mapping as ColumnMapping;
   } catch (e) {
@@ -48,6 +49,7 @@ export const identifyColumns = async (headers: string[], sampleRows: SheetRow[])
 };
 
 export const getSheetInsights = async (rows: SheetRow[]): Promise<string> => {
+  const ai = getAI();
   const dataSummary = JSON.stringify(rows.slice(0, 10));
   const response = await ai.models.generateContent({
     model: "gemini-3-flash-preview",
@@ -55,5 +57,5 @@ export const getSheetInsights = async (rows: SheetRow[]): Promise<string> => {
     Summarize what these locations represent in 1-2 short sentences: ${dataSummary}.`,
   });
 
-  return response.text;
+  return response.text || "Dataset processed successfully.";
 };
