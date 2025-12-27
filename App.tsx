@@ -1,10 +1,9 @@
-
 import React, { useState, useCallback, useEffect, useMemo } from 'react';
-import { AppState, SheetRow, PlotPoint, ColumnMapping, StyleRule } from './types';
-import { fetchGoogleSheetData } from './services/sheetService';
-import { identifyColumns, getSheetInsights } from './services/geminiService';
-import MapDisplay from './components/MapDisplay';
-import DataTable from './components/DataTable';
+import { AppState, SheetRow, PlotPoint, ColumnMapping, StyleRule } from './types.ts';
+import { fetchGoogleSheetData } from './services/sheetService.ts';
+import { identifyColumns, getSheetInsights } from './services/geminiService.ts';
+import MapDisplay from './components/MapDisplay.tsx';
+import DataTable from './components/DataTable.tsx';
 
 const PALETTE = [
   '#CC0000', '#000000', '#444444', '#777777', '#999999', 
