@@ -8,8 +8,9 @@ export const identifyColumns = async (headers: string[], sampleRows: SheetRow[])
   const ai = getAI();
   const sampleDataStr = JSON.stringify(sampleRows.slice(0, 5));
   
+  // Use gemini-3-pro-preview for advanced reasoning/extraction task as per guidelines for complex tasks
   const response = await ai.models.generateContent({
-    model: "gemini-3-flash-preview",
+    model: "gemini-3-pro-preview",
     contents: `Analyze the following CSV headers and sample data. 
     Identify the column(s) representing geographic coordinates.
     Headers: ${headers.join(", ")}
@@ -46,16 +47,4 @@ export const identifyColumns = async (headers: string[], sampleRows: SheetRow[])
       lngColumn: lng || headers[1] 
     };
   }
-};
-
-export const getSheetInsights = async (rows: SheetRow[]): Promise<string> => {
-  const ai = getAI();
-  const dataSummary = JSON.stringify(rows.slice(0, 10));
-  const response = await ai.models.generateContent({
-    model: "gemini-3-flash-preview",
-    contents: `The user uploaded geographic data. 
-    Summarize what these locations represent in 1-2 short sentences: ${dataSummary}.`,
-  });
-
-  return response.text || "Dataset processed successfully.";
 };

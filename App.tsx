@@ -1,8 +1,7 @@
-
 import React, { useState, useCallback, useEffect, useMemo } from 'react';
 import { AppState, SheetRow, PlotPoint, ColumnMapping, StyleRule } from './types.ts';
 import { fetchGoogleSheetData } from './services/sheetService.ts';
-import { identifyColumns, getSheetInsights } from './services/geminiService.ts';
+import { identifyColumns } from './services/geminiService.ts';
 import MapDisplay from './components/MapDisplay.tsx';
 import DataTable from './components/DataTable.tsx';
 
@@ -14,8 +13,8 @@ declare global {
   }
 
   interface Window {
-    // Removed readonly modifier to ensure identity with existing global definitions and fix TS error
-    aistudio: AIStudio;
+    // Add readonly modifier to match existing global definitions and fix "identical modifiers" error
+    readonly aistudio: AIStudio;
   }
 }
 
@@ -47,7 +46,6 @@ const App: React.FC = () => {
     styleConfig: { activeColumn: null, rule: null }
   });
   
-  const [insights, setInsights] = useState<string | null>(null);
   const [selectedPoint, setSelectedPoint] = useState<PlotPoint | null>(null);
   const [selectedFilters, setSelectedFilters] = useState<string[]>([]);
   const [filterColumn, setFilterColumn] = useState<string | null>(null);
@@ -160,7 +158,6 @@ const App: React.FC = () => {
     if (!hasApiKey) return;
 
     setState(prev => ({ ...prev, isLoading: true, error: null, points: [], sheetData: [], mapping: null }));
-    setInsights(null);
     setSelectedPoint(null);
     setSelectedFilters([]);
     
@@ -182,13 +179,6 @@ const App: React.FC = () => {
           .sort();
         setSelectedFilters(types);
       }
-
-      getSheetInsights(rows).then(setInsights).catch(e => {
-        console.error("Insights Error:", e);
-        if (e.message?.includes("entity was not found")) {
-          setHasApiKey(false); // Reset key state if it fails with project error
-        }
-      });
     } catch (err: any) {
       setState(prev => ({ ...prev, isLoading: false, error: err.message }));
       if (err.message?.includes("entity was not found")) setHasApiKey(false);
@@ -384,16 +374,6 @@ const App: React.FC = () => {
               </div>
             )}
           </div>
-        </div>
-
-        <div className="bg-zinc-100 dark:bg-zinc-900/50 p-6 rounded-3xl border border-zinc-200 dark:border-zinc-800 flex flex-col md:flex-row items-start md:items-center gap-6">
-          <div className="px-4 py-2 bg-white dark:bg-black rounded-xl shadow-sm border border-zinc-200 dark:border-zinc-800 flex items-center gap-3">
-             <div className="w-3 h-3 rounded-full bg-[#CC0000] animate-pulse"></div>
-             <span className="text-[10px] font-black text-black dark:text-white uppercase tracking-widest">AI Analyst Active</span>
-          </div>
-          <p className="text-sm text-zinc-700 dark:text-zinc-300 font-medium leading-relaxed">
-            {state.isLoading ? "Crunching location patterns..." : (insights || "Connecting to secure dataset...")}
-          </p>
         </div>
 
         <div className="h-[750px] bg-white dark:bg-zinc-900 rounded-[2.5rem] shadow-2xl border border-gray-100 dark:border-zinc-800 overflow-hidden relative group">
