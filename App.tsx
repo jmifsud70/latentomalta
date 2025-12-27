@@ -5,19 +5,6 @@ import { identifyColumns } from './services/geminiService.ts';
 import MapDisplay from './components/MapDisplay.tsx';
 import DataTable from './components/DataTable.tsx';
 
-// Defining AIStudio interface to resolve type mismatch errors
-declare global {
-  interface AIStudio {
-    hasSelectedApiKey: () => Promise<boolean>;
-    openSelectKey: () => Promise<void>;
-  }
-
-  interface Window {
-    // Add readonly modifier to match existing global definitions and fix "identical modifiers" error
-    readonly aistudio: AIStudio;
-  }
-}
-
 const PALETTE = [
   '#CC0000', '#000000', '#444444', '#777777', '#999999', 
   '#BB0000', '#222222', '#660000', '#333333', '#AA0000'
@@ -33,9 +20,6 @@ const App: React.FC = () => {
     return 'light';
   });
 
-  const [hasApiKey, setHasApiKey] = useState<boolean | null>(null);
-  const [isAuthenticating, setIsAuthenticating] = useState(false);
-
   const [state, setState] = useState<AppState>({
     isLoading: false,
     error: null,
@@ -49,38 +33,6 @@ const App: React.FC = () => {
   const [selectedPoint, setSelectedPoint] = useState<PlotPoint | null>(null);
   const [selectedFilters, setSelectedFilters] = useState<string[]>([]);
   const [filterColumn, setFilterColumn] = useState<string | null>(null);
-
-  // 1. Authentication Check
-  useEffect(() => {
-    const checkKey = async () => {
-      // If process.env.API_KEY is already present (injected), we are good
-      if (process.env.API_KEY && process.env.API_KEY.length > 5) {
-        setHasApiKey(true);
-        return;
-      }
-      
-      // Otherwise check the AI Studio selector
-      if (window.aistudio) {
-        const has = await window.aistudio.hasSelectedApiKey();
-        setHasApiKey(has);
-      } else {
-        setHasApiKey(false);
-      }
-    };
-    checkKey();
-  }, []);
-
-  const handleConnectAI = async () => {
-    if (window.aistudio) {
-      setIsAuthenticating(true);
-      await window.aistudio.openSelectKey();
-      // Assume success as per instructions to avoid race conditions
-      setHasApiKey(true);
-      setIsAuthenticating(false);
-    } else {
-      alert("AI Authentication service not available. Check your internet connection.");
-    }
-  };
 
   useEffect(() => {
     const root = window.document.documentElement;
@@ -99,10 +51,10 @@ const App: React.FC = () => {
     let s = val.trim().toUpperCase();
     if (!s || s === 'NULL' || s === 'UNDEFINED') return null;
     
-    // Handle cardinal directions often found in GPS data
+    // Check for negative indicators
     const isNegative = s.includes('S') || s.includes('W') || s.startsWith('-');
     
-    // European decimal handling (48,85 -> 48.85)
+    // Handle European decimal handling (48,85 -> 48.85)
     if (s.includes(',') && !s.includes('.')) {
       const commaCount = (s.match(/,/g) || []).length;
       if (commaCount === 1) s = s.replace(',', '.');
@@ -140,7 +92,7 @@ const App: React.FC = () => {
         lng = cleanAndParse(rawLng);
       }
       
-      // SKIP logic: only push if both are valid coordinates and not [0,0]
+      // Standard coordinate validation
       if (
         lat !== null && 
         lng !== null && 
@@ -155,8 +107,6 @@ const App: React.FC = () => {
   }, []);
 
   const handleFetch = useCallback(async () => {
-    if (!hasApiKey) return;
-
     setState(prev => ({ ...prev, isLoading: true, error: null, points: [], sheetData: [], mapping: null }));
     setSelectedPoint(null);
     setSelectedFilters([]);
@@ -181,13 +131,12 @@ const App: React.FC = () => {
       }
     } catch (err: any) {
       setState(prev => ({ ...prev, isLoading: false, error: err.message }));
-      if (err.message?.includes("entity was not found")) setHasApiKey(false);
     }
-  }, [processPoints, hasApiKey]);
+  }, [processPoints]);
 
   useEffect(() => {
-    if (hasApiKey) handleFetch();
-  }, [handleFetch, hasApiKey]);
+    handleFetch();
+  }, [handleFetch]);
 
   const uniqueInstallationTypes = useMemo(() => {
     if (!filterColumn || !state.sheetData.length) return [];
@@ -251,40 +200,6 @@ const App: React.FC = () => {
     return firstKey ? String(point.data[firstKey]) : 'Location Details';
   };
 
-  if (hasApiKey === false) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-50 dark:bg-black p-6 font-sans">
-        <div className="max-w-md w-full bg-white dark:bg-zinc-900 rounded-3xl p-10 shadow-2xl border border-gray-100 dark:border-zinc-800 text-center space-y-8 animate-in fade-in zoom-in duration-500">
-          <div className="w-20 h-20 bg-[#CC0000] rounded-2xl flex items-center justify-center text-white font-black text-4xl shadow-xl mx-auto ring-8 ring-red-50 dark:ring-red-900/10">W</div>
-          <div className="space-y-2">
-            <h1 className="text-2xl font-black text-black dark:text-white uppercase tracking-tight">Security & Connection</h1>
-            <p className="text-sm text-zinc-500 dark:text-zinc-400 leading-relaxed">
-              To visualize the Latento installation data, this app requires a secure connection to Google Gemini AI. Please authorize using your paid API key.
-            </p>
-          </div>
-          <button 
-            onClick={handleConnectAI}
-            disabled={isAuthenticating}
-            className="w-full py-4 px-6 bg-[#CC0000] hover:bg-black dark:hover:bg-white dark:hover:text-black text-white font-black rounded-2xl transition-all shadow-lg active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-3"
-          >
-            {isAuthenticating ? (
-              <svg className="animate-spin h-5 w-5 text-white" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
-            ) : (
-              <>
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/></svg>
-                AUTHORIZE GEMINI AI
-              </>
-            )}
-          </button>
-          <p className="text-[10px] text-zinc-400 dark:text-zinc-600 font-bold uppercase tracking-widest">
-            Requires a paid Google Cloud Project <br/>
-            <a href="https://ai.google.dev/gemini-api/docs/billing" target="_blank" className="underline hover:text-[#CC0000]">Learn about billing</a>
-          </p>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div className="min-h-screen flex flex-col bg-slate-50 dark:bg-black font-sans transition-colors duration-300">
       <header className="bg-white/80 dark:bg-zinc-950/80 backdrop-blur-md border-b dark:border-zinc-800 px-6 py-4 flex items-center justify-between sticky top-0 z-[1000] shadow-sm">
@@ -326,7 +241,7 @@ const App: React.FC = () => {
               <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd"/></svg>
               <span className="font-bold">{state.error}</span>
             </div>
-            <button onClick={handleConnectAI} className="text-xs font-black underline uppercase">Reset Connection</button>
+            <button onClick={handleFetch} className="text-xs font-black underline uppercase">Retry Sync</button>
           </div>
         )}
           
