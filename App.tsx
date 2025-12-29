@@ -1,10 +1,14 @@
-
 import React, { useState, useCallback, useEffect, useMemo } from 'react';
 import { AppState, SheetRow, PlotPoint, ColumnMapping, StyleRule } from './types.ts';
 import { fetchGoogleSheetData } from './services/sheetService.ts';
 import { identifyColumns } from './services/geminiService.ts';
 import MapDisplay from './components/MapDisplay.tsx';
 import DataTable from './components/DataTable.tsx';
+
+const PALETTE = [
+  '#CC0000', '#000000', '#444444', '#777777', '#999999', 
+  '#BB0000', '#222222', '#660000', '#333333', '#AA0000'
+];
 
 const DEFAULT_SHEET_URL = 'https://docs.google.com/spreadsheets/d/1RBeGX954Pebq-Vj8Z-La41zFkdxykV4tijpHclkHLCk/edit?usp=sharing';
 
@@ -121,7 +125,7 @@ const App: React.FC = () => {
       
       if (possibleFilterCol) {
         const types = Array.from(new Set(rows.map(row => String(row[possibleFilterCol] || 'Unknown'))))
-          .filter((t: string) => t.trim() !== '')
+          .filter(t => t.trim() !== '')
           .sort();
         setSelectedFilters(types);
       }
@@ -137,7 +141,7 @@ const App: React.FC = () => {
   const uniqueInstallationTypes = useMemo(() => {
     if (!filterColumn || !state.sheetData.length) return [];
     return Array.from(new Set(state.sheetData.map(row => String(row[filterColumn] || 'Unknown'))))
-      .filter((t: string) => t.trim() !== '')
+      .filter(t => t.trim() !== '')
       .sort();
   }, [filterColumn, state.sheetData]);
 
@@ -158,7 +162,39 @@ const App: React.FC = () => {
     setSelectedFilters(isAllSelected ? [] : uniqueInstallationTypes);
   };
 
+  const handleApplyStyle = (columnName: string) => {
+    if (!columnName) {
+      setState(prev => ({ ...prev, styleConfig: { activeColumn: null, rule: null } }));
+      return;
+    }
+    const uniqueValues: string[] = Array.from(new Set(state.sheetData.map(r => String(r[columnName]))));
+    const colorMap: Record<string, string> = {};
+    uniqueValues.forEach((val, idx) => {
+      colorMap[val] = PALETTE[idx % PALETTE.length];
+    });
+    const rule: StyleRule = { column: columnName, type: 'categorical', colorMap };
+    setState(prev => ({ ...prev, styleConfig: { activeColumn: columnName, rule } }));
+  };
+
+  const updateMapping = (type: 'lat' | 'lng', column: string) => {
+    setState(prev => {
+      const newMapping = prev.mapping ? { ...prev.mapping } : { latColumn: '', lngColumn: '' };
+      if (type === 'lat') newMapping.latColumn = column;
+      else newMapping.lngColumn = column;
+      return { ...prev, mapping: newMapping, points: processPoints(prev.sheetData, newMapping) };
+    });
+  };
+
+  const swapMapping = () => {
+    setState(prev => {
+      if (!prev.mapping) return prev;
+      const newMapping = { latColumn: prev.mapping.lngColumn, lngColumn: prev.mapping.latColumn };
+      return { ...prev, mapping: newMapping, points: processPoints(prev.sheetData, newMapping) };
+    });
+  };
+
   const getPointTitle = (point: PlotPoint) => {
+    // Priority: Project -> Latento -> First Key
     const projectKey = Object.keys(point.data).find(k => k.toLowerCase() === 'project');
     if (projectKey) return String(point.data[projectKey]);
 
@@ -301,6 +337,64 @@ const App: React.FC = () => {
           )}
         </div>
 
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+          <div className="bg-white dark:bg-zinc-900 p-8 rounded-3xl shadow-sm border border-gray-100 dark:border-zinc-800">
+            <div className="flex justify-between items-center mb-8">
+              <h2 className="text-xs font-black text-zinc-400 dark:text-zinc-500 uppercase tracking-[0.2em]">Map Configuration</h2>
+              <button onClick={swapMapping} className="px-4 py-2 bg-red-50 dark:bg-red-950/20 text-[#CC0000] rounded-xl text-[10px] font-black hover:bg-[#CC0000] hover:text-white transition-all">SWAP AXIS</button>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+              <div className="space-y-2">
+                <label className="text-[10px] font-black text-zinc-400 dark:text-zinc-500 uppercase tracking-widest">Lat Source</label>
+                <select 
+                  value={state.mapping?.latColumn || ''}
+                  onChange={(e) => updateMapping('lat', e.target.value)}
+                  className="w-full text-xs font-bold border-zinc-200 dark:border-zinc-700 border rounded-xl p-4 bg-zinc-50 dark:bg-black outline-none focus:ring-2 focus:ring-[#CC0000] transition-all"
+                >
+                  {state.headers.map(h => <option key={h} value={h}>{h}</option>)}
+                </select>
+              </div>
+              <div className="space-y-2">
+                <label className="text-[10px] font-black text-zinc-400 dark:text-zinc-500 uppercase tracking-widest">Lng Source</label>
+                <select 
+                  value={state.mapping?.lngColumn || ''}
+                  onChange={(e) => updateMapping('lng', e.target.value)}
+                  className="w-full text-xs font-bold border-zinc-200 dark:border-zinc-700 border rounded-xl p-4 bg-zinc-50 dark:bg-black outline-none focus:ring-2 focus:ring-[#CC0000] transition-all"
+                >
+                  {state.headers.map(h => <option key={h} value={h}>{h}</option>)}
+                </select>
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-white dark:bg-zinc-900 p-8 rounded-3xl shadow-sm border border-gray-100 dark:border-zinc-800">
+            <h2 className="text-xs font-black text-zinc-400 dark:text-zinc-500 uppercase tracking-[0.2em] mb-8">Dynamic Marker Style</h2>
+            <div className="space-y-6">
+              <div className="space-y-2">
+                <label className="text-[10px] font-black text-zinc-400 dark:text-zinc-500 uppercase tracking-widest">Thematic Layer</label>
+                <select 
+                  value={state.styleConfig.activeColumn || ''}
+                  onChange={(e) => handleApplyStyle(e.target.value)}
+                  className="w-full text-xs font-bold border-zinc-200 dark:border-zinc-700 border rounded-xl p-4 bg-zinc-50 dark:bg-black outline-none focus:ring-2 focus:ring-[#CC0000] transition-all"
+                >
+                  <option value="">Static (Wurth Corporate Red)</option>
+                  {state.headers.map(h => <option key={h} value={h}>{h}</option>)}
+                </select>
+              </div>
+              {state.styleConfig.rule && (
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 max-h-[120px] overflow-y-auto pr-2 custom-scrollbar">
+                  {Object.entries(state.styleConfig.rule.colorMap).map(([val, color]) => (
+                    <div key={val} className="flex items-center gap-3 p-2 rounded-lg bg-slate-50 dark:bg-black border border-transparent">
+                      <div className="w-2.5 h-2.5 rounded-full shadow-sm" style={{ backgroundColor: color }} />
+                      <span className="truncate text-[9px] text-zinc-600 dark:text-zinc-400 font-black uppercase tracking-wider">{val}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+
         {state.sheetData.length > 0 && (
           <div className="bg-white dark:bg-zinc-900 rounded-[2.5rem] shadow-sm border border-gray-100 dark:border-zinc-800 p-8">
             <div className="flex justify-between items-center mb-8">
@@ -309,12 +403,7 @@ const App: React.FC = () => {
                 {filteredPoints.length} ASSETS DEPLOYED
               </div>
             </div>
-            <DataTable 
-              headers={state.headers} 
-              rows={state.sheetData} 
-              latCol={state.mapping?.latColumn} 
-              lngCol={state.mapping?.lngColumn} 
-            />
+            <DataTable headers={state.headers} rows={state.sheetData} latCol={state.mapping?.latColumn} lngCol={state.mapping?.lngColumn} />
           </div>
         )}
       </main>
