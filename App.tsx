@@ -1,4 +1,3 @@
-
 import React, { useState, useCallback, useEffect, useMemo } from 'react';
 import { AppState, SheetRow, PlotPoint, ColumnMapping, StyleRule } from './types.ts';
 import { fetchGoogleSheetData } from './services/sheetService.ts';
@@ -52,8 +51,10 @@ const App: React.FC = () => {
     let s = val.trim().toUpperCase();
     if (!s || s === 'NULL' || s === 'UNDEFINED') return null;
     
+    // Check for negative indicators
     const isNegative = s.includes('S') || s.includes('W') || s.startsWith('-');
     
+    // Handle European decimal handling (48,85 -> 48.85)
     if (s.includes(',') && !s.includes('.')) {
       const commaCount = (s.match(/,/g) || []).length;
       if (commaCount === 1) s = s.replace(',', '.');
@@ -91,7 +92,7 @@ const App: React.FC = () => {
         lng = cleanAndParse(rawLng);
       }
       
-      // Standard coordinate validation - skips rows where coordinates are invalid or zero
+      // Standard coordinate validation
       if (
         lat !== null && 
         lng !== null && 
@@ -123,9 +124,8 @@ const App: React.FC = () => {
       setState(prev => ({ ...prev, isLoading: false, error: null, sheetData: rows, headers, mapping, points: validPoints }));
       
       if (possibleFilterCol) {
-        // Fix: Explicitly type 't' as string to avoid 'unknown' type error in Array.from filter
         const types = Array.from(new Set(rows.map(row => String(row[possibleFilterCol] || 'Unknown'))))
-          .filter((t: string) => t.trim() !== '')
+          .filter(t => t.trim() !== '')
           .sort();
         setSelectedFilters(types);
       }
@@ -140,9 +140,8 @@ const App: React.FC = () => {
 
   const uniqueInstallationTypes = useMemo(() => {
     if (!filterColumn || !state.sheetData.length) return [];
-    // Fix: Explicitly type 't' as string to avoid 'unknown' type error when filtering results from Array.from
     return Array.from(new Set(state.sheetData.map(row => String(row[filterColumn] || 'Unknown'))))
-      .filter((t: string) => t.trim() !== '')
+      .filter(t => t.trim() !== '')
       .sort();
   }, [filterColumn, state.sheetData]);
 
@@ -195,6 +194,7 @@ const App: React.FC = () => {
   };
 
   const getPointTitle = (point: PlotPoint) => {
+    // Priority: Project -> Latento -> First Key
     const projectKey = Object.keys(point.data).find(k => k.toLowerCase() === 'project');
     if (projectKey) return String(point.data[projectKey]);
 
@@ -403,12 +403,7 @@ const App: React.FC = () => {
                 {filteredPoints.length} ASSETS DEPLOYED
               </div>
             </div>
-            <DataTable 
-              headers={state.headers} 
-              rows={state.sheetData} 
-              latCol={state.mapping?.latColumn} 
-              lngCol={state.mapping?.lngColumn} 
-            />
+            <DataTable headers={state.headers} rows={state.sheetData} latCol={state.mapping?.latColumn} lngCol={state.mapping?.lngColumn} />
           </div>
         )}
       </main>
