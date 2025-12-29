@@ -1,3 +1,4 @@
+
 import React, { useState, useCallback, useEffect, useMemo } from 'react';
 import { AppState, SheetRow, PlotPoint, ColumnMapping, StyleRule } from './types.ts';
 import { fetchGoogleSheetData } from './services/sheetService.ts';
@@ -46,12 +47,12 @@ const App: React.FC = () => {
 
   const toggleTheme = () => setTheme(prev => prev === 'light' ? 'dark' : 'light');
 
-  const cleanAndParse = (val: string): number | null => {
-    if (!val || typeof val !== 'string') return null;
-    let s = val.trim().toUpperCase();
+  const cleanAndParse = (val: any): number | null => {
+    if (val === undefined || val === null) return null;
+    let s = String(val).trim().toUpperCase();
     if (!s || s === 'NULL' || s === 'UNDEFINED') return null;
     
-    // Check for negative indicators
+    // Check for negative indicators (South/West)
     const isNegative = s.includes('S') || s.includes('W') || s.startsWith('-');
     
     // Handle European decimal handling (48,85 -> 48.85)
@@ -77,11 +78,11 @@ const App: React.FC = () => {
       let lat: number | null = null;
       let lng: number | null = null;
       
-      const rawLat = String(row[mapping.latColumn] || '');
-      const rawLng = String(row[mapping.lngColumn] || '');
+      const rawLat = row[mapping.latColumn];
+      const rawLng = row[mapping.lngColumn];
 
       if (isSameColumn) {
-        const combined = rawLat;
+        const combined = String(rawLat || '');
         const parts = combined.split(/[,;\s]+/).filter(p => p.trim());
         if (parts.length >= 2) {
           lat = cleanAndParse(parts[0]);
@@ -92,7 +93,7 @@ const App: React.FC = () => {
         lng = cleanAndParse(rawLng);
       }
       
-      // Standard coordinate validation
+      // Coordinate validation: skip rows where coordinates are invalid or zeroed (empty)
       if (
         lat !== null && 
         lng !== null && 
@@ -125,7 +126,7 @@ const App: React.FC = () => {
       
       if (possibleFilterCol) {
         const types = Array.from(new Set(rows.map(row => String(row[possibleFilterCol] || 'Unknown'))))
-          .filter(t => t.trim() !== '')
+          .filter(t => String(t).trim() !== '')
           .sort();
         setSelectedFilters(types);
       }
@@ -141,7 +142,7 @@ const App: React.FC = () => {
   const uniqueInstallationTypes = useMemo(() => {
     if (!filterColumn || !state.sheetData.length) return [];
     return Array.from(new Set(state.sheetData.map(row => String(row[filterColumn] || 'Unknown'))))
-      .filter(t => t.trim() !== '')
+      .filter(t => String(t).trim() !== '')
       .sort();
   }, [filterColumn, state.sheetData]);
 
@@ -194,7 +195,6 @@ const App: React.FC = () => {
   };
 
   const getPointTitle = (point: PlotPoint) => {
-    // Priority: Project -> Latento -> First Key
     const projectKey = Object.keys(point.data).find(k => k.toLowerCase() === 'project');
     if (projectKey) return String(point.data[projectKey]);
 
@@ -323,7 +323,7 @@ const App: React.FC = () => {
 
               <div className="space-y-5 max-h-[450px] overflow-y-auto pr-2 custom-scrollbar">
                 {Object.entries(selectedPoint.data)
-                  .filter(([key]) => key !== state.mapping?.latColumn && key !== state.mapping?.lngColumn)
+                  .filter(([key]) => key !== state.mapping?.latColumn && key !== state.mapping?.lngColumn) // Clean view: filter out coordinate source columns
                   .map(([key, value]) => (
                   <div key={key} className="space-y-1">
                     <p className="text-[10px] font-black text-zinc-400 dark:text-zinc-500 uppercase tracking-widest">{key}</p>
