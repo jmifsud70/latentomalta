@@ -10,7 +10,7 @@ interface DataTableProps {
 }
 
 const DataTable: React.FC<DataTableProps> = ({ headers, rows, latCol, lngCol }) => {
-  // Filter out the coordinate columns from the visible headers
+  // Filter out the coordinate columns from the visible headers as requested
   const visibleHeaders = headers.filter(h => h !== latCol && h !== lngCol);
 
   return (

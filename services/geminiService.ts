@@ -6,7 +6,6 @@ import { SheetRow, ColumnMapping } from "../types";
  * Identifies coordinate columns using Gemini AI based on sheet headers and sample data.
  */
 export const identifyColumns = async (headers: string[], sampleRows: SheetRow[]): Promise<ColumnMapping> => {
-  // Initialize Gemini API
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
   const prompt = `
@@ -16,8 +15,12 @@ export const identifyColumns = async (headers: string[], sampleRows: SheetRow[])
     Headers: ${headers.join(', ')}
     Sample Data (first 3 rows): ${JSON.stringify(sampleRows.slice(0, 3))}
     
+    Specific Instruction:
+    - Use "Latitude N" for latitude if it exists.
+    - Use "Longitude E" for longitude if it exists.
+    
     Rules:
-    1. If there's a specific 'Latitude' and 'Longitude' column (e.g., 'Latitude E', 'Longitude N'), return those.
+    1. Prefer "Latitude N" and "Longitude E" exactly if they are in the headers list.
     2. If there's a single column with combined coordinates (e.g. "35.8, 14.4"), use that for both.
     3. Return the exact header names as they appear in the headers list.
   `;
@@ -53,15 +56,17 @@ export const identifyColumns = async (headers: string[], sampleRows: SheetRow[])
     console.error("Gemini failed to identify columns, falling back to heuristics:", error);
   }
 
-  // Fallback heuristic if Gemini fails or returns invalid data
-  const lowercaseHeaders = headers.map(h => h.toLowerCase());
+  // Fallback heuristic: User specified "Latitude N" and "Longitude E"
+  const latColumn = headers.find(h => h === 'Latitude N') || 
+                    headers.find(h => h.toLowerCase().includes('latitude') || h.toLowerCase() === 'lat') || 
+                    headers[0];
   
-  // Specific targets
-  const latIndex = lowercaseHeaders.findIndex(h => h === 'latitude e' || h.includes('latitude') || h === 'lat');
-  const lngIndex = lowercaseHeaders.findIndex(h => h === 'longitude n' || h.includes('longitude') || h === 'long' || h === 'lng');
+  const lngColumn = headers.find(h => h === 'Longitude E') || 
+                    headers.find(h => h.toLowerCase().includes('longitude') || h.toLowerCase() === 'long' || h.toLowerCase() === 'lng') || 
+                    headers[1] || headers[0];
 
   return {
-    latColumn: latIndex !== -1 ? headers[latIndex] : (headers.find(h => h.toLowerCase().includes('lat')) || headers[0]),
-    lngColumn: lngIndex !== -1 ? headers[lngIndex] : (headers.find(h => h.toLowerCase().includes('long') || h.toLowerCase().includes('lng')) || headers[1] || headers[0])
+    latColumn,
+    lngColumn
   };
 };

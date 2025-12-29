@@ -6,11 +6,6 @@ import { identifyColumns } from './services/geminiService.ts';
 import MapDisplay from './components/MapDisplay.tsx';
 import DataTable from './components/DataTable.tsx';
 
-const PALETTE = [
-  '#CC0000', '#000000', '#444444', '#777777', '#999999', 
-  '#BB0000', '#222222', '#660000', '#333333', '#AA0000'
-];
-
 const DEFAULT_SHEET_URL = 'https://docs.google.com/spreadsheets/d/1RBeGX954Pebq-Vj8Z-La41zFkdxykV4tijpHclkHLCk/edit?usp=sharing';
 
 const App: React.FC = () => {
@@ -125,8 +120,6 @@ const App: React.FC = () => {
       setState(prev => ({ ...prev, isLoading: false, error: null, sheetData: rows, headers, mapping, points: validPoints }));
       
       if (possibleFilterCol) {
-        // Fix for Error: Property 'trim' does not exist on type 'unknown'.
-        // Array.from on a Set can sometimes result in unknown[] in some TS environments.
         const types = Array.from(new Set(rows.map(row => String(row[possibleFilterCol] || 'Unknown'))))
           .filter((t: string) => t.trim() !== '')
           .sort();
@@ -166,7 +159,6 @@ const App: React.FC = () => {
   };
 
   const getPointTitle = (point: PlotPoint) => {
-    // Priority: Project -> Latento -> First Key
     const projectKey = Object.keys(point.data).find(k => k.toLowerCase() === 'project');
     if (projectKey) return String(point.data[projectKey]);
 
@@ -317,7 +309,12 @@ const App: React.FC = () => {
                 {filteredPoints.length} ASSETS DEPLOYED
               </div>
             </div>
-            <DataTable headers={state.headers} rows={state.sheetData} latCol={state.mapping?.latColumn} lngCol={state.mapping?.lngColumn} />
+            <DataTable 
+              headers={state.headers} 
+              rows={state.sheetData} 
+              latCol={state.mapping?.latColumn} 
+              lngCol={state.mapping?.lngColumn} 
+            />
           </div>
         )}
       </main>
